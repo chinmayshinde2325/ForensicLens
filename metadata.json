@@ -1,0 +1,6 @@
+{
+  "name": "ForensicLens",
+  "description": "Local AI-powered Windows digital forensics and Sigma threat-hunting workbench backed by OpenSearch and Ollama.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1824 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ForensicLens — Local AI DFIR &amp; Sigma Workbench</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background-color: #f4f7fb;
+        color: #0f172a;
+      }
+      h1, h2, h3, .font-display {
+        font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+      }
+      code, pre, .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .lab-grid-bg {
+        background-color: #f4f7fb;
+        background-image:
+          radial-gradient(circle at 14% 8%, rgba(14, 165, 233, 0.08), transparent 36%),
+          radial-gradient(circle at 86% 14%, rgba(79, 70, 229, 0.06), transparent 34%),
+          linear-gradient(to right, rgba(14, 116, 144, 0.04) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(14, 116, 144, 0.04) 1px, transparent 1px);
+        background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+      }
+      .lab-panel {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        backdrop-filter: blur(12px);
+      }
+      @keyframes radar-sweep {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .radar-sweep-arm {
+        transform-origin: 110px 110px;
+        animation: radar-sweep 5.5s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .radar-sweep-arm { animation: none; }
+      }
+    </style>
+  </head>
+  <body class="min-h-screen flex flex-col lg:flex-row lab-grid-bg text-slate-900 antialiased">
+    <!-- Left Vertical Command Rail (Top bar on <lg, Sidebar on lg+) -->
+    <aside class="lg:w-60 shrink-0 bg-white/92 backdrop-blur-md border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col justify-between lg:sticky lg:top-0 lg:h-screen z-20">
+      <div class="p-4 lg:p-5 space-y-5">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5 whitespace-nowrap shrink-0">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="7" fill="rgba(2,132,199,0.10)" stroke="#0284C7" stroke-width="1.9" />
+              <circle cx="10.5" cy="10.5" r="3" stroke="#4F46E5" stroke-width="1.2" stroke-opacity="0.85" />
+              <path d="M15.8 15.8L20.5 20.5" stroke="#0284C7" stroke-width="2.2" stroke-linecap="round" />
+            </svg>
+            <span class="text-base font-bold tracking-tight text-slate-900 font-display">ForensicLens</span>
+          </div>
+
+          <button
+            type="button"
+            class="scan-logs-trigger lg:hidden px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg whitespace-nowrap shrink-0 transition-colors"
+          >
+            Scan Logs
+          </button>
+        </div>
+
+        <nav class="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
+          <button type="button" data-nav="triage" class="nav-tab flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg whitespace-nowrap shrink-0 transition-colors bg-sky-50 text-sky-800 border border-sky-200 font-semibold">
+            Alerts
+          </button>
+          <button type="button" data-nav="all" class="nav-tab flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg whitespace-nowrap shrink-0 transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent font-medium">
+            All Events
+          </button>
+          <button type="button" data-nav="graph" class="nav-tab flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg whitespace-nowrap shrink-0 transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent font-medium">
+            Attack Graph
+          </button>
+          <button type="button" data-nav="rules" class="nav-tab flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg whitespace-nowrap shrink-0 transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent font-medium">
+            Sigma Rules
+          </button>
+          <button type="button" id="history-nav-btn" data-nav="history" class="nav-tab flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg whitespace-nowrap shrink-0 transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent font-medium">
+            History (0)
+          </button>
+        </nav>
+      </div>
+
+      <div class="hidden lg:flex flex-col gap-2 p-5 border-t border-slate-200 bg-slate-50/70">
+        <button
+          id="run-triage-btn"
+          type="button"
+          class="scan-logs-trigger w-full px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg whitespace-nowrap transition-colors shadow-xs"
+        >
+          Scan Logs
+        </button>
+        <a
+          id="export-btn"
+          href="/api/export"
+          class="w-full text-center px-3.5 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg whitespace-nowrap transition-colors"
+        >
+          Export Report
+        </a>
+        <button
+          id="clear-case-btn"
+          type="button"
+          class="clear-history-trigger w-full px-3.5 py-2 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg whitespace-nowrap transition-colors"
+        >
+          Clear History
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area: Top Telemetry Deck + Bottom Split Investigation Canvas -->
+    <div class="flex-1 min-w-0 p-5 lg:p-6 space-y-5">
+      <!-- Top Artifact Ingestion Strip -->
+      <section class="space-y-2.5">
+        <div
+          id="dropzone"
+          tabindex="0"
+          role="button"
+          aria-label="Upload Windows event log"
+          class="lab-panel border-dashed border-sky-400/60 hover:border-sky-500 hover:bg-sky-50/40 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer transition-colors shadow-xs"
+        >
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2.5">
+              <h1 class="text-sm font-semibold text-slate-900 font-display">Upload Windows Log Artifact</h1>
+              <span id="connection-summary" class="text-xs font-mono text-slate-500">Checking OpenSearch &amp; Ollama...</span>
+              <button
+                id="active-tactic-chip"
+                type="button"
+                class="hidden px-2 py-0.5 rounded bg-sky-100 border border-sky-300 text-sky-800 font-mono text-[11px]"
+              ></button>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Drag and drop <span class="font-mono text-sky-700 font-medium">.evtx</span> or
+              <span class="font-mono text-sky-700 font-medium">.jsonl</span> logs to populate the Threat Radar and Attack Graph.
+            </p>
+            <p id="upload-status" class="text-xs font-medium text-indigo-700 mt-1 font-mono"></p>
+          </div>
+          <span class="px-4 py-2 text-xs font-semibold text-sky-800 bg-sky-50 border border-sky-200 rounded-lg whitespace-nowrap shrink-0">
+            Choose File
+          </span>
+          <input id="file-input" type="file" accept=".evtx,.jsonl,.json" class="hidden" />
+        </div>
+
+        <div class="flex lg:hidden items-center justify-end gap-2">
+          <a
+            href="/api/export"
+            class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg"
+          >
+            Export Report
+          </a>
+          <button
+            type="button"
+            class="clear-history-trigger px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-lg"
+          >
+            Clear History
+          </button>
+        </div>
+      </section>
+
+      <!-- Full-Width Telemetry Deck: Threat Radar + 4 Radial Severity Arc Gauges -->
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <div class="xl:col-span-5 lab-panel rounded-xl p-4 flex flex-col sm:flex-row items-center gap-4 shadow-xs">
+          <div class="relative w-[176px] h-[176px] shrink-0">
+            <svg id="threat-radar-svg" viewBox="0 0 220 220" class="w-full h-full overflow-visible" aria-label="MITRE ATT&CK Threat Radar"></svg>
+          </div>
+          <div class="flex-1 w-full min-w-0 space-y-2">
+            <div>
+              <div class="text-xs font-semibold text-slate-900 font-display">Threat Radar</div>
+              <div id="radar-subtitle" class="text-[11px] text-slate-500">Idle sweep awaiting logs</div>
+            </div>
+            <div id="radar-tactic-list" class="space-y-1"></div>
+          </div>
+        </div>
+
+        <div id="severity-gauges" class="xl:col-span-7 grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 gap-3.5"></div>
+      </div>
+
+      <!-- Bottom 12-Col Split Investigation Canvas -->
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+        <!-- Left 7 Cols: Active Workspace View -->
+        <section class="xl:col-span-7 flex flex-col gap-4 min-w-0">
+          <!-- Filter Toolbar -->
+          <div id="alerts-toolbar" class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded-lg shadow-2xs">
+              <button type="button" data-sev="" class="sev-btn px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white whitespace-nowrap">
+                All
+              </button>
+              <button type="button" data-sev="critical" class="sev-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 whitespace-nowrap">
+                Critical
+              </button>
+              <button type="button" data-sev="high" class="sev-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 whitespace-nowrap">
+                High
+              </button>
+              <button type="button" data-sev="medium" class="sev-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 whitespace-nowrap">
+                Medium
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2 flex-1 max-w-md">
+              <input
+                id="search-input"
+                type="search"
+                placeholder="Filter by host, user, EventID, or command..."
+                class="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-sky-500 shadow-2xs"
+              />
+              <button
+                id="refresh-btn"
+                type="button"
+                class="px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg whitespace-nowrap shrink-0"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <!-- Alerts / Events List View -->
+          <div id="events-view" class="lab-panel rounded-xl overflow-hidden flex-1 flex flex-col shadow-xs">
+            <div id="events-list" class="divide-y divide-slate-200/80 overflow-y-auto max-h-[540px]"></div>
+            <div id="events-empty" class="hidden py-16 px-6 text-center space-y-1.5">
+              <p class="text-sm font-semibold text-slate-900 font-display">No events in active case</p>
+              <p class="text-xs text-slate-500">
+                Drop a Windows <span class="font-mono text-sky-700 font-medium">.evtx</span> or
+                <span class="font-mono text-sky-700 font-medium">.jsonl</span> file above to initialize Threat Radar and triage.
+              </p>
+            </div>
+          </div>
+
+          <!-- Interactive Attack Timeline & Entity Graph View -->
+          <div id="graph-view" class="hidden space-y-4">
+            <div id="graph-empty" class="hidden lab-panel rounded-xl py-16 px-6 text-center space-y-1.5 shadow-xs">
+              <p class="text-sm font-semibold text-slate-900 font-display">No Attack Telemetry Plotted</p>
+              <p class="text-xs text-slate-500">
+                Upload a Windows log artifact above to render the chronological timeline and entity relationship graph.
+              </p>
+            </div>
+            <div id="graph-content" class="space-y-4">
+              <div class="lab-panel rounded-xl p-4 space-y-3 shadow-xs">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 class="text-xs font-semibold text-slate-900 font-display">Chronological Attack Timeline</h3>
+                    <p class="text-[11px] text-slate-500">Select any sequence step to inspect full forensic evidence</p>
+                  </div>
+                  <span id="timeline-count" class="text-[11px] font-mono tabular-nums text-sky-700 font-semibold">0 events</span>
+                </div>
+                <div id="timeline-strip" class="flex items-stretch gap-2.5 overflow-x-auto pb-1"></div>
+              </div>
+
+              <div class="lab-panel rounded-xl p-4 space-y-3 shadow-xs">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 class="text-xs font-semibold text-slate-900 font-display">Entity &amp; Lateral Movement Graph</h3>
+                    <p class="text-[11px] text-slate-500">Click any node to isolate its attack path and linked events</p>
+                  </div>
+                  <button
+                    id="graph-reset-btn"
+                    type="button"
+                    class="hidden px-2.5 py-1 text-[11px] font-medium text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded-md whitespace-nowrap"
+                  >
+                    Reset Selection
+                  </button>
+                </div>
+                <div class="w-full overflow-x-auto rounded-lg bg-slate-50/80 border border-slate-200">
+                  <svg id="attack-graph-svg" class="w-full min-w-[680px]" aria-label="Interactive Attack Entity Graph"></svg>
+                </div>
+                <div id="graph-linked-events" class="hidden pt-2 border-t border-slate-200 space-y-2"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sigma Rules Catalog View -->
+          <div id="rules-view" class="hidden lab-panel rounded-xl p-5 space-y-3 shadow-xs">
+            <h2 class="text-sm font-semibold text-slate-900 font-display">Automated Sigma Detection Rules</h2>
+            <div id="rules-list" class="divide-y divide-slate-200 border border-slate-200 rounded-lg bg-white"></div>
+          </div>
+
+          <!-- Saved Investigation History View -->
+          <div id="history-view" class="hidden lab-panel rounded-xl p-5 space-y-3 shadow-xs">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-900 font-display">Saved Investigation History</h2>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Sessions archived when you click Clear Chat. Open any past case to restore its Threat Radar, Graph, and chat.
+              </p>
+            </div>
+            <div id="history-list" class="divide-y divide-slate-200 border border-slate-200 rounded-lg bg-white"></div>
+          </div>
+        </section>
+
+        <!-- Right 5 Cols: ForensicLens AI Copilot Terminal -->
+        <aside class="xl:col-span-5 lab-panel rounded-xl flex flex-col overflow-hidden min-h-[580px] xl:h-[640px] shadow-xs">
+          <div class="px-5 py-3.5 border-b border-slate-200 bg-white flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-900 font-display">ForensicLens AI Copilot</h2>
+              <p class="text-[11px] text-slate-500 font-mono">Hybrid OpenSearch k-NN + Local Ollama</p>
+            </div>
+            <button
+              id="clear-chat-btn"
+              type="button"
+              class="px-3 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md whitespace-nowrap"
+            >
+              Clear Chat
+            </button>
+          </div>
+
+          <div class="px-4 py-2.5 border-b border-slate-200 bg-slate-50/80 flex items-center gap-1.5 overflow-x-auto">
+            <button type="button" data-mode="investigate" class="mode-btn px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-600 text-white whitespace-nowrap">
+              Investigate
+            </button>
+            <button type="button" data-mode="hunt" class="mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 whitespace-nowrap">
+              Threat Hunt
+            </button>
+            <button type="button" data-mode="remediate" class="mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 whitespace-nowrap">
+              Contain
+            </button>
+            <button type="button" data-mode="sigma_rule" class="mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 whitespace-nowrap">
+              Sigma Rule
+            </button>
+          </div>
+
+          <div class="px-4 py-2.5 border-b border-slate-200 flex flex-wrap gap-1.5 bg-white">
+            <button type="button" class="prompt-chip px-2.5 py-1 text-xs font-medium text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-md transition-colors text-left">
+              Summarize attack timeline
+            </button>
+            <button type="button" class="prompt-chip px-2.5 py-1 text-xs font-medium text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-md transition-colors text-left">
+              Find LSASS memory dump activity
+            </button>
+            <button type="button" class="prompt-chip px-2.5 py-1 text-xs font-medium text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-md transition-colors text-left">
+              Check backup deletion or Defender tampering
+            </button>
+          </div>
+
+          <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/60">
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 text-xs text-slate-700 leading-relaxed shadow-2xs">
+              ForensicLens AI Copilot online. Drop a log file to populate the Threat Radar and Attack Graph, then select a mode above to investigate with clickable evidence citations.
+            </div>
+          </div>
+
+          <form id="chat-form" class="p-3.5 border-t border-slate-200 bg-white">
+            <div class="flex items-end gap-2">
+              <textarea
+                id="chat-input"
+                rows="2"
+                placeholder="Ask about lateral movement, encoded PowerShell, or LSASS access..."
+                class="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none focus:border-sky-500"
+              ></textarea>
+              <button
+                id="chat-submit"
+                type="submit"
+                class="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg whitespace-nowrap shrink-0 disabled:opacity-50"
+              >
+                Investigate
+              </button>
+            </div>
+          </form>
+        </aside>
+      </div>
+    </div>
+
+    <!-- Evidence Inspector Drawer -->
+    <div id="inspector-backdrop" class="hidden fixed inset-0 bg-slate-900/35 backdrop-blur-xs z-40"></div>
+    <aside
+      id="inspector-drawer"
+      aria-label="Event Evidence Inspector"
+      class="hidden fixed top-0 right-0 h-full w-full max-w-xl bg-white border-l border-slate-200 z-50 flex flex-col shadow-2xl"
+    >
+      <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="text-xs font-mono text-sky-700 font-semibold truncate" id="inspector-doc-id"></div>
+          <h3 class="text-sm font-semibold text-slate-900 mt-0.5 font-display">Event Evidence Inspector</h3>
+        </div>
+        <button
+          id="close-inspector-btn"
+          type="button"
+          class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg"
+        >
+          Close
+        </button>
+      </div>
+      <div id="inspector-body" class="flex-1 overflow-y-auto p-6 space-y-4 text-xs"></div>
+    </aside>
+
+    <script>
+      const HISTORY_STORAGE_KEY = 'forensiclens_history_v1';
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const RADAR_AXES = [
+        { tactic: 'Lateral Movement', shortLabel: 'Lateral', angleDeg: -90 },
+        { tactic: 'Execution', shortLabel: 'Execution', angleDeg: -30 },
+        { tactic: 'Defense Evasion', shortLabel: 'Evasion', angleDeg: 30 },
+        { tactic: 'Credential Access', shortLabel: 'Creds', angleDeg: 90 },
+        { tactic: 'Impact', shortLabel: 'Impact', angleDeg: 150 },
+        { tactic: 'Persistence', shortLabel: 'Persist', angleDeg: 210 },
+      ];
+      const SEV_RANK = { none: 0, low: 1, medium: 2, high: 3, critical: 4 };
+
+      const state = {
+        view: 'triage',
+        severity: '',
+        tactic: '',
+        search: '',
+        events: [],
+        flaggedTelemetry: [],
+        stats: { total: 0, flagged: 0, critical: 0, highMed: 0 },
+        activeFileName: '',
+        messages: [],
+        copilotMode: 'investigate',
+        restoredMode: false,
+        selectedDocId: null,
+        selectedGraphNodeId: null,
+        history: [],
+      };
+
+      const el = (id) => document.getElementById(id);
+      const svgEl = (tag, attrs = {}) => {
+        const node = document.createElementNS(SVG_NS, tag);
+        Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, String(v)));
+        return node;
+      };
+
+      function loadHistoryFromStorage() {
+        try {
+          const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          state.history = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          state.history = [];
+        }
+        updateHistoryNavLabel();
+      }
+
+      function saveHistoryToStorage() {
+        try {
+          localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(state.history.slice(0, 20)));
+        } catch {}
+        updateHistoryNavLabel();
+      }
+
+      function updateHistoryNavLabel() {
+        const navBtn = el('history-nav-btn');
+        if (navBtn) navBtn.textContent = `History (${state.history.length})`;
+      }
+
+      function formatTimestamp(ts) {
+        if (!ts) return '-';
+        return String(ts).replace('T', ' ').replace(/\.\d+Z?$/, 'Z').slice(0, 20);
+      }
+
+      function shortName(raw) {
+        if (!raw) return '-';
+        const clean = String(raw).split(/[\\/]/).pop() || String(raw);
+        return clean.length > 18 ? `${clean.slice(0, 16)}..` : clean;
+      }
+
+      function severityMeta(sev) {
+        const s = (sev || 'none').toLowerCase();
+        if (s === 'critical') {
+          return { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', stroke: '#E11D48', label: 'CRITICAL' };
+        }
+        if (s === 'high') {
+          return { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', stroke: '#D97706', label: 'HIGH' };
+        }
+        if (s === 'medium') {
+          return { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', stroke: '#0284C7', label: 'MEDIUM' };
+        }
+        return { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', stroke: '#059669', label: 'INFO' };
+      }
+
+      function decodePowerShellBase64(commandLine) {
+        if (!commandLine) return null;
+        const match = String(commandLine).match(/(?:-EncodedCommand|-enc|-ec|-e)\s+([A-Za-z0-9+/=]{16,})/i);
+        if (!match) return null;
+        try {
+          const binary = atob(match[1]);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const decoded = new TextDecoder('utf-16le').decode(bytes).replace(/\0/g, '').trim();
+          return decoded || null;
+        } catch {
+          return null;
+        }
+      }
+
+      function resetSeverityButtons() {
+        state.severity = '';
+        document.querySelectorAll('.sev-btn').forEach((b) => {
+          if ((b.dataset.sev || '') === '') {
+            b.className = 'sev-btn px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white whitespace-nowrap';
+          } else {
+            b.className = 'sev-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 whitespace-nowrap';
+          }
+        });
+      }
+
+      function updateTacticChip() {
+        const chip = el('active-tactic-chip');
+        if (state.tactic) {
+          chip.textContent = `Tactic: ${state.tactic} ×`;
+          chip.classList.remove('hidden');
+        } else {
+          chip.classList.add('hidden');
+        }
+      }
+
+      function toggleTacticFilter(tactic) {
+        state.tactic = state.tactic === tactic ? '' : tactic;
+        updateTacticChip();
+        renderThreatRadar();
+        renderEventsList();
+      }
+
+      function toggleSeverityFromGauge(sev) {
+        state.severity = state.severity === sev ? '' : sev;
+        document.querySelectorAll('.sev-btn').forEach((b) => {
+          const active = (b.dataset.sev || '') === state.severity;
+          b.className = active
+            ? 'sev-btn px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white whitespace-nowrap'
+            : 'sev-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 whitespace-nowrap';
+        });
+        renderSeverityGauges();
+        loadEvents();
+      }
+
+      function renderSeverityGauges() {
+        const container = el('severity-gauges');
+        container.textContent = '';
+        const { total, flagged, critical, highMed } = state.stats;
+        const base = Math.max(total, 1);
+        const radius = 23;
+        const circ = 2 * Math.PI * radius;
+
+        const cards = [
+          { id: 'total', label: 'Indexed Events', val: total, ratio: total > 0 ? 1 : 0, color: '#4F46E5', sub: total > 0 ? 'Active telemetry' : 'Awaiting logs', sev: '', clickable: false },
+          { id: 'flagged', label: 'Sigma Flagged', val: flagged, ratio: total > 0 ? flagged / base : 0, color: '#0284C7', sub: total > 0 ? `${Math.round((flagged / base) * 100)}% alert rate` : '0% alert rate', sev: '', clickable: true },
+          { id: 'critical', label: 'Critical Alerts', val: critical, ratio: total > 0 ? critical / base : 0, color: '#E11D48', sub: 'Click to filter', sev: 'critical', clickable: true },
+          { id: 'high', label: 'High / Medium', val: highMed, ratio: total > 0 ? highMed / base : 0, color: '#D97706', sub: 'Click to filter', sev: 'high', clickable: true },
+        ];
+
+        cards.forEach((c) => {
+          const isSelected = c.clickable && c.sev && state.severity === c.sev;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.disabled = !c.clickable;
+          btn.className =
+            'lab-panel rounded-xl p-4 flex items-center gap-3.5 text-left transition-colors shadow-xs ' +
+            (isSelected ? 'border-sky-500 bg-sky-50/90' : c.clickable ? 'hover:border-sky-400 cursor-pointer' : 'cursor-default');
+
+          if (c.clickable) {
+            btn.addEventListener('click', () => {
+              if (c.id === 'flagged') {
+                state.tactic = '';
+                updateTacticChip();
+                toggleSeverityFromGauge('');
+              } else {
+                toggleSeverityFromGauge(c.sev);
+              }
+            });
+          }
+
+          const wrap = document.createElement('div');
+          wrap.className = 'relative w-14 h-14 shrink-0 flex items-center justify-center';
+          const svg = svgEl('svg', { viewBox: '0 0 56 56', class: 'w-full h-full -rotate-90' });
+          svg.appendChild(svgEl('circle', { cx: 28, cy: 28, r: radius, fill: 'none', stroke: '#E2E8F0', 'stroke-width': 4.5 }));
+          const offset = circ * (1 - Math.min(1, Math.max(0, c.ratio)));
+          svg.appendChild(
+            svgEl('circle', {
+              cx: 28,
+              cy: 28,
+              r: radius,
+              fill: 'none',
+              stroke: c.color,
+              'stroke-width': 4.5,
+              'stroke-linecap': 'round',
+              'stroke-dasharray': circ,
+              'stroke-dashoffset': offset,
+            }),
+          );
+          const num = document.createElement('span');
+          num.className = 'absolute font-mono tabular-nums text-sm font-bold text-slate-900';
+          num.textContent = String(c.val);
+          wrap.appendChild(svg);
+          wrap.appendChild(num);
+
+          const textCol = document.createElement('div');
+          textCol.className = 'min-w-0';
+          const lbl = document.createElement('div');
+          lbl.className = 'text-xs font-semibold text-slate-900 truncate';
+          lbl.textContent = c.label;
+          const sub = document.createElement('div');
+          sub.className = 'text-[11px] text-slate-500 truncate mt-0.5';
+          sub.textContent = c.sub;
+          textCol.appendChild(lbl);
+          textCol.appendChild(sub);
+
+          btn.appendChild(wrap);
+          btn.appendChild(textCol);
+          container.appendChild(btn);
+        });
+      }
+
+      function renderThreatRadar() {
+        const svg = el('threat-radar-svg');
+        const list = el('radar-tactic-list');
+        const subtitle = el('radar-subtitle');
+        svg.textContent = '';
+        list.textContent = '';
+
+        const sourceEvents = state.flaggedTelemetry.length > 0 ? state.flaggedTelemetry : state.events;
+        const byTactic = new Map();
+        sourceEvents.forEach((evt) => {
+          (evt.sigma_alerts || []).forEach((a) => {
+            const cur = byTactic.get(a.mitre_tactic) || { count: 0, maxSev: 'none' };
+            cur.count += 1;
+            if ((SEV_RANK[a.severity] || 0) > (SEV_RANK[cur.maxSev] || 0)) {
+              cur.maxSev = a.severity;
+            }
+            byTactic.set(a.mitre_tactic, cur);
+          });
+        });
+
+        subtitle.textContent = state.stats.flagged > 0 ? 'Click a tactic to filter alerts' : 'Idle sweep awaiting logs';
+
+        const defs = svgEl('defs');
+        const grad = svgEl('radialGradient', { id: 'winLabRadarGrad', cx: '50%', cy: '50%', r: '50%' });
+        grad.appendChild(svgEl('stop', { offset: '0%', 'stop-color': '#0284C7', 'stop-opacity': '0.02' }));
+        grad.appendChild(svgEl('stop', { offset: '100%', 'stop-color': '#0284C7', 'stop-opacity': '0.22' }));
+        defs.appendChild(grad);
+        svg.appendChild(defs);
+
+        svg.appendChild(svgEl('circle', { cx: 110, cy: 110, r: 82, fill: '#F8FAFC', stroke: 'rgba(2,132,199,0.22)', 'stroke-width': 1 }));
+        svg.appendChild(svgEl('circle', { cx: 110, cy: 110, r: 56, fill: 'none', stroke: 'rgba(2,132,199,0.16)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+        svg.appendChild(svgEl('circle', { cx: 110, cy: 110, r: 30, fill: 'none', stroke: 'rgba(2,132,199,0.16)', 'stroke-width': 1 }));
+
+        const plotted = RADAR_AXES.map((ax) => {
+          const info = byTactic.get(ax.tactic) || { count: 0, maxSev: 'none' };
+          const rad = (ax.angleDeg * Math.PI) / 180;
+          const dist = info.count === 0 ? 0 : info.maxSev === 'critical' ? 74 : info.maxSev === 'high' ? 56 : 38;
+          return {
+            ...ax,
+            count: info.count,
+            maxSev: info.maxSev,
+            x: 110 + dist * Math.cos(rad),
+            y: 110 + dist * Math.sin(rad),
+            labelX: 110 + 95 * Math.cos(rad),
+            labelY: 110 + 95 * Math.sin(rad),
+            endX: 110 + 82 * Math.cos(rad),
+            endY: 110 + 82 * Math.sin(rad),
+            color: severityMeta(info.maxSev).stroke,
+          };
+        });
+
+        plotted.forEach((p) => {
+          svg.appendChild(svgEl('line', { x1: 110, y1: 110, x2: p.endX, y2: p.endY, stroke: 'rgba(100,116,139,0.25)', 'stroke-width': 1 }));
+        });
+
+        const sweepG = svgEl('g', { class: 'radar-sweep-arm' });
+        sweepG.appendChild(svgEl('path', { d: 'M 110 110 L 110 28 A 82 82 0 0 1 181 69 Z', fill: 'url(#winLabRadarGrad)' }));
+        sweepG.appendChild(svgEl('line', { x1: 110, y1: 110, x2: 110, y2: 28, stroke: '#0284C7', 'stroke-width': 1.5, 'stroke-opacity': 0.72 }));
+        svg.appendChild(sweepG);
+
+        const activePts = plotted.filter((p) => p.count > 0);
+        if (activePts.length >= 3) {
+          svg.appendChild(
+            svgEl('polygon', {
+              points: activePts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
+              fill: 'rgba(79,70,229,0.12)',
+              stroke: 'rgba(79,70,229,0.65)',
+              'stroke-width': 1.3,
+            }),
+          );
+        }
+
+        plotted.forEach((p) => {
+          const isSelected = state.tactic === p.tactic;
+          const g = svgEl('g', { class: 'cursor-pointer' });
+          g.addEventListener('click', () => toggleTacticFilter(p.tactic));
+
+          const txt = svgEl('text', {
+            x: p.labelX,
+            y: p.labelY,
+            'text-anchor': 'middle',
+            'dominant-baseline': 'central',
+            fill: isSelected ? '#0284C7' : p.count > 0 ? '#0F172A' : '#64748B',
+            'font-size': '9.5',
+            'font-weight': isSelected || p.count > 0 ? '600' : '500',
+            'font-family': 'JetBrains Mono, monospace',
+          });
+          txt.textContent = p.shortLabel;
+          g.appendChild(txt);
+
+          if (p.count > 0) {
+            g.appendChild(svgEl('circle', { cx: p.x, cy: p.y, r: isSelected ? 8.5 : 6.5, fill: p.color, 'fill-opacity': 0.2 }));
+            g.appendChild(svgEl('circle', { cx: p.x, cy: p.y, r: isSelected ? 4.5 : 3.5, fill: p.color, stroke: '#FFFFFF', 'stroke-width': 1.4 }));
+          }
+          svg.appendChild(g);
+
+          const rowBtn = document.createElement('button');
+          rowBtn.type = 'button';
+          rowBtn.className =
+            'w-full flex items-center justify-between gap-2 px-2 py-1 rounded text-[11px] transition-colors ' +
+            (isSelected ? 'bg-sky-50 text-sky-800 border border-sky-300 font-semibold' : 'text-slate-700 hover:bg-slate-100 border border-transparent');
+          rowBtn.addEventListener('click', () => toggleTacticFilter(p.tactic));
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'truncate';
+          nameSpan.textContent = p.tactic;
+          const countSpan = document.createElement('span');
+          countSpan.className = `font-mono tabular-nums font-semibold ${p.count > 0 ? 'text-sky-700' : 'text-slate-400'}`;
+          countSpan.textContent = String(p.count);
+          rowBtn.appendChild(nameSpan);
+          rowBtn.appendChild(countSpan);
+          list.appendChild(rowBtn);
+        });
+
+        svg.appendChild(svgEl('circle', { cx: 110, cy: 110, r: 2.8, fill: '#0284C7' }));
+      }
+
+      async function fetchJson(url, options = {}) {
+        const res = await fetch(url, options);
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try {
+            const err = await res.json();
+            if (err.detail) detail = err.detail;
+          } catch {}
+          throw new Error(detail);
+        }
+        return res.json();
+      }
+
+      async function loadHealth() {
+        try {
+          const data = await fetchJson('/api/health');
+          const osText = data.opensearch_connected ? `OpenSearch ${data.opensearch_version}` : 'OpenSearch offline';
+          const llmText = data.ollama_connected ? `Ollama (${data.ollama_model})` : 'Ollama offline';
+          el('connection-summary').textContent = `· ${osText} · ${llmText}`;
+        } catch {
+          el('connection-summary').textContent = '· API unreachable';
+        }
+      }
+
+      async function loadStats() {
+        if (state.restoredMode) return;
+        try {
+          const data = await fetchJson('/api/stats');
+          const total = data.total_events || 0;
+          const flagged = data.flagged_events || 0;
+          const critical = data.severity_counts?.critical || 0;
+          const highMed = (data.severity_counts?.high || 0) + (data.severity_counts?.medium || 0);
+          state.stats = { total, flagged, critical, highMed };
+          renderSeverityGauges();
+          renderRulesCatalog(data.rules_catalog || []);
+
+          if (flagged > 0) {
+            try {
+              const flaggedRes = await fetchJson('/api/alerts?flagged_only=true&limit=150');
+              state.flaggedTelemetry = flaggedRes.events || [];
+            } catch {}
+          } else {
+            state.flaggedTelemetry = [];
+          }
+          renderThreatRadar();
+        } catch {}
+      }
+
+      function renderRulesCatalog(rules) {
+        const container = el('rules-list');
+        container.textContent = '';
+        rules.forEach((rule) => {
+          const metaStyle = severityMeta(rule.severity);
+          const row = document.createElement('div');
+          row.className = 'p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+
+          const left = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'text-xs font-semibold text-slate-900';
+          title.textContent = rule.title;
+
+          const sub = document.createElement('div');
+          sub.className = 'text-xs text-slate-500 mt-0.5 font-mono';
+          sub.textContent = `${rule.rule_id} · ${rule.mitre_tactic} (${rule.mitre_technique})`;
+
+          left.appendChild(title);
+          left.appendChild(sub);
+
+          const sev = document.createElement('span');
+          sev.className = `px-2.5 py-1 rounded-md border text-[11px] font-semibold font-mono shrink-0 ${metaStyle.bg} ${metaStyle.border} ${metaStyle.text}`;
+          sev.textContent = metaStyle.label;
+
+          row.appendChild(left);
+          row.appendChild(sev);
+          container.appendChild(row);
+        });
+      }
+
+      async function loadEvents() {
+        if (state.restoredMode) {
+          renderEventsList();
+          if (state.view === 'graph') renderAttackGraph();
+          return;
+        }
+        const params = new URLSearchParams();
+        params.set('flagged_only', state.view === 'triage' ? 'true' : 'false');
+        if (state.severity) params.set('severity', state.severity);
+        if (state.search.trim()) params.set('q', state.search.trim());
+        params.set('limit', '150');
+
+        try {
+          const data = await fetchJson(`/api/alerts?${params.toString()}`);
+          state.events = data.events || [];
+          renderEventsList();
+          if (state.view === 'graph') renderAttackGraph();
+        } catch (err) {
+          state.events = [];
+          renderEventsList(err.message);
+          if (state.view === 'graph') renderAttackGraph();
+        }
+      }
+
+      function renderEventsList(errorMessage = '') {
+        const list = el('events-list');
+        const empty = el('events-empty');
+        list.textContent = '';
+
+        let visibleEvents = state.events;
+        if (state.restoredMode) {
+          const q = state.search.trim().toLowerCase();
+          visibleEvents = state.events.filter((evt) => {
+            if (state.view === 'triage' && !evt.sigma_flagged) return false;
+            if (state.severity && (evt.sigma_severity || '').toLowerCase() !== state.severity) return false;
+            if (q) {
+              const hay = `${evt.host || ''} ${evt.user || ''} ${evt.event_id || ''} ${evt.command_line || ''} ${evt.message || ''}`.toLowerCase();
+              if (!hay.includes(q)) return false;
+            }
+            return true;
+          });
+        }
+        if (state.tactic) {
+          visibleEvents = visibleEvents.filter((evt) =>
+            (evt.sigma_alerts || []).some((a) => a.mitre_tactic === state.tactic),
+          );
+        }
+
+        if (!visibleEvents.length) {
+          empty.classList.remove('hidden');
+          empty.querySelector('p').textContent = errorMessage
+            ? `Unable to query OpenSearch: ${errorMessage}`
+            : state.events.length > 0
+              ? 'No matching events for current filter'
+              : 'No events in active case';
+          return;
+        }
+        empty.classList.add('hidden');
+
+        visibleEvents.forEach((evt) => {
+          const style = severityMeta(evt.sigma_severity);
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className =
+            'w-full text-left px-4 py-3.5 hover:bg-sky-50/70 transition-colors flex flex-col gap-1.5 ' +
+            (state.selectedDocId === evt.doc_id ? 'bg-sky-50' : '');
+          row.addEventListener('click', () => openInspector(evt.doc_id));
+
+          const top = document.createElement('div');
+          top.className = 'flex items-center justify-between gap-3';
+
+          const titleWrap = document.createElement('div');
+          titleWrap.className = 'flex items-center gap-2.5 min-w-0';
+
+          const sevTag = document.createElement('span');
+          sevTag.className = `px-2 py-0.5 rounded border text-[10px] font-semibold font-mono shrink-0 ${style.bg} ${style.border} ${style.text}`;
+          sevTag.textContent = style.label;
+
+          const title = document.createElement('span');
+          title.className = 'text-xs font-semibold text-slate-900 truncate';
+          const alertTitles = (evt.sigma_alerts || []).map((a) => a.title).join(' · ');
+          title.textContent = alertTitles || evt.message || `Windows Event ${evt.event_id || ''}`;
+
+          titleWrap.appendChild(sevTag);
+          titleWrap.appendChild(title);
+
+          const ts = document.createElement('span');
+          ts.className = 'text-[11px] font-mono tabular-nums text-slate-500 shrink-0';
+          ts.textContent = formatTimestamp(evt.timestamp);
+
+          top.appendChild(titleWrap);
+          top.appendChild(ts);
+
+          const meta = document.createElement('div');
+          meta.className = 'text-[11px] text-slate-500';
+          meta.textContent = `${evt.host || '-'} · ${evt.user || '-'} · Event ${evt.event_id || '-'}`;
+
+          row.appendChild(top);
+          row.appendChild(meta);
+
+          if (evt.command_line) {
+            const cmd = document.createElement('div');
+            cmd.className = 'text-[11px] font-mono text-slate-800 bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1 truncate';
+            cmd.textContent = evt.command_line;
+            row.appendChild(cmd);
+          }
+
+          list.appendChild(row);
+        });
+      }
+
+      function renderAttackGraph() {
+        const emptyBox = el('graph-empty');
+        const contentBox = el('graph-content');
+        const strip = el('timeline-strip');
+        const svg = el('attack-graph-svg');
+        const linkedWrap = el('graph-linked-events');
+        const resetBtn = el('graph-reset-btn');
+
+        const source = [...state.events].sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+        if (!source.length) {
+          emptyBox.classList.remove('hidden');
+          contentBox.classList.add('hidden');
+          return;
+        }
+        emptyBox.classList.add('hidden');
+        contentBox.classList.remove('hidden');
+
+        el('timeline-count').textContent = `${source.length} events`;
+        strip.textContent = '';
+        source.slice(0, 24).forEach((evt, idx) => {
+          const style = severityMeta(evt.sigma_severity);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className =
+            'min-w-[188px] max-w-[210px] shrink-0 text-left rounded-lg bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-400 p-3 transition-colors space-y-1';
+          btn.addEventListener('click', () => openInspector(evt.doc_id));
+
+          const top = document.createElement('div');
+          top.className = 'flex items-center justify-between gap-2 text-[10px] font-mono tabular-nums';
+          const step = document.createElement('span');
+          step.className = 'text-indigo-600 font-semibold';
+          step.textContent = `T${idx + 1}`;
+          const sev = document.createElement('span');
+          sev.className = style.text;
+          sev.textContent = style.label;
+          top.appendChild(step);
+          top.appendChild(sev);
+
+          const title = document.createElement('div');
+          title.className = 'text-[11px] font-semibold text-slate-900 truncate';
+          title.textContent = (evt.sigma_alerts && evt.sigma_alerts[0]?.title) || `Event ${evt.event_id || '-'}`;
+
+          const sub = document.createElement('div');
+          sub.className = 'text-[10px] font-mono tabular-nums text-slate-500 truncate';
+          sub.textContent = `${formatTimestamp(evt.timestamp)} · ${shortName(evt.process_name || evt.host)}`;
+
+          btn.appendChild(top);
+          btn.appendChild(title);
+          btn.appendChild(sub);
+          strip.appendChild(btn);
+        });
+
+        const nodeMap = new Map();
+        const edgeMap = new Map();
+        const colX = [78, 232, 386, 540, 694];
+        const colTitles = ['Source IP', 'Host', 'User', 'Process', 'Target'];
+
+        const upsertNode = (id, label, kind, col, sev, docId) => {
+          const ex = nodeMap.get(id);
+          if (ex) {
+            if (!ex.docIds.includes(docId)) ex.docIds.push(docId);
+            if ((SEV_RANK[sev] || 0) > (SEV_RANK[ex.severity] || 0)) ex.severity = sev;
+          } else {
+            nodeMap.set(id, { id, label, kind, col, severity: sev, docIds: [docId] });
+          }
+        };
+        const addEdge = (from, to, sev) => {
+          const key = `${from}__${to}`;
+          const ex = edgeMap.get(key);
+          if (ex) {
+            if ((SEV_RANK[sev] || 0) > (SEV_RANK[ex.severity] || 0)) ex.severity = sev;
+          } else {
+            edgeMap.set(key, { id: key, from, to, severity: sev });
+          }
+        };
+
+        source.slice(0, 40).forEach((evt) => {
+          const sev = evt.sigma_severity || 'none';
+          const hostId = `host:${evt.host || 'UNKNOWN'}`;
+          upsertNode(hostId, evt.host || 'UNKNOWN', 'Host', 1, sev, evt.doc_id);
+          const userId = `user:${evt.user || 'SYSTEM'}`;
+          upsertNode(userId, evt.user || 'SYSTEM', 'User', 2, sev, evt.doc_id);
+          addEdge(hostId, userId, sev);
+
+          if (evt.source_ip) {
+            const ipId = `ip:${evt.source_ip}`;
+            upsertNode(ipId, evt.source_ip, 'Source IP', 0, sev, evt.doc_id);
+            addEdge(ipId, hostId, sev);
+          }
+
+          const procRaw = evt.process_name || `Event ${evt.event_id || '-'}`;
+          const procId = `proc:${procRaw}`;
+          upsertNode(procId, shortName(procRaw), 'Process', 3, sev, evt.doc_id);
+          addEdge(userId, procId, sev);
+
+          const cmdLow = String(evt.command_line || '').toLowerCase();
+          const targetRaw =
+            evt.target_image ||
+            (cmdLow.includes('vssadmin')
+              ? 'Shadow Copies'
+              : cmdLow.includes('mppreference')
+                ? 'Windows Defender'
+                : cmdLow.includes('-enc')
+                  ? 'Encoded Script'
+                  : '');
+          if (targetRaw) {
+            const tgtId = `tgt:${targetRaw}`;
+            upsertNode(tgtId, shortName(targetRaw), 'Target', 4, sev, evt.doc_id);
+            addEdge(procId, tgtId, sev);
+          }
+        });
+
+        const buckets = [[], [], [], [], []];
+        nodeMap.forEach((n) => buckets[n.col].push(n));
+        const maxRows = Math.max(1, ...buckets.map((b) => b.length));
+        const svgH = Math.max(250, 74 + maxRows * 56);
+
+        const positioned = [];
+        buckets.forEach((bucket, cIdx) => {
+          const spacing = (svgH - 62) / (bucket.length + 1);
+          bucket.forEach((item, rIdx) => {
+            positioned.push({ ...item, x: colX[cIdx], y: 44 + spacing * (rIdx + 1) });
+          });
+        });
+
+        const lookup = new Map(positioned.map((n) => [n.id, n]));
+        const edges = Array.from(edgeMap.values());
+
+        svg.textContent = '';
+        svg.setAttribute('viewBox', `0 0 772 ${svgH}`);
+        svg.style.height = `${svgH}px`;
+
+        colTitles.forEach((title, i) => {
+          const t = svgEl('text', {
+            x: colX[i],
+            y: 22,
+            'text-anchor': 'middle',
+            fill: '#475569',
+            'font-size': 10,
+            'font-weight': 600,
+            'font-family': 'JetBrains Mono, monospace',
+          });
+          t.textContent = title;
+          svg.appendChild(t);
+        });
+
+        edges.forEach((edge) => {
+          const fromN = lookup.get(edge.from);
+          const toN = lookup.get(edge.to);
+          if (!fromN || !toN) return;
+          const highlighted = !state.selectedGraphNodeId || edge.from === state.selectedGraphNodeId || edge.to === state.selectedGraphNodeId;
+          const midX = (fromN.x + toN.x) / 2;
+          const d = `M ${fromN.x + 56} ${fromN.y} C ${midX} ${fromN.y}, ${midX} ${toN.y}, ${toN.x - 56} ${toN.y}`;
+          svg.appendChild(
+            svgEl('path', {
+              d,
+              fill: 'none',
+              stroke: severityMeta(edge.severity).stroke,
+              'stroke-width': highlighted ? 2 : 1.1,
+              'stroke-opacity': highlighted ? 0.78 : 0.16,
+            }),
+          );
+        });
+
+        positioned.forEach((node) => {
+          const isSel = state.selectedGraphNodeId === node.id;
+          const isConn =
+            !state.selectedGraphNodeId ||
+            isSel ||
+            edges.some((e) => (e.from === state.selectedGraphNodeId && e.to === node.id) || (e.to === state.selectedGraphNodeId && e.from === node.id));
+          const g = svgEl('g', { class: 'cursor-pointer', opacity: isConn ? 1 : 0.3 });
+          g.addEventListener('click', () => {
+            state.selectedGraphNodeId = isSel ? null : node.id;
+            renderAttackGraph();
+          });
+
+          g.appendChild(
+            svgEl('rect', {
+              x: node.x - 56,
+              y: node.y - 17,
+              width: 112,
+              height: 34,
+              rx: 7,
+              fill: isSel ? '#E0F2FE' : '#FFFFFF',
+              stroke: isSel ? '#0284C7' : severityMeta(node.severity).stroke,
+              'stroke-width': isSel ? 2 : 1.3,
+            }),
+          );
+          const lbl = svgEl('text', {
+            x: node.x,
+            y: node.y + 1,
+            'text-anchor': 'middle',
+            'dominant-baseline': 'central',
+            fill: '#0F172A',
+            'font-size': 10,
+            'font-weight': 600,
+            'font-family': 'JetBrains Mono, monospace',
+          });
+          lbl.textContent = node.label.length > 15 ? `${node.label.slice(0, 14)}…` : node.label;
+          g.appendChild(lbl);
+          svg.appendChild(g);
+        });
+
+        const activeNode = lookup.get(state.selectedGraphNodeId);
+        if (activeNode) {
+          resetBtn.classList.remove('hidden');
+          const idSet = new Set(activeNode.docIds);
+          const linked = source.filter((e) => idSet.has(e.doc_id));
+          linkedWrap.textContent = '';
+          linkedWrap.classList.remove('hidden');
+
+          const heading = document.createElement('div');
+          heading.className = 'text-xs font-semibold text-sky-800';
+          heading.textContent = `${activeNode.kind}: ${activeNode.label} (${linked.length} linked events)`;
+          linkedWrap.appendChild(heading);
+
+          const grid = document.createElement('div');
+          grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-2';
+          linked.forEach((evt) => {
+            const st = severityMeta(evt.sigma_severity);
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 transition-colors space-y-1';
+            card.addEventListener('click', () => openInspector(evt.doc_id));
+
+            const rowTop = document.createElement('div');
+            rowTop.className = 'flex items-center justify-between gap-2 text-[10px] font-mono';
+            const s1 = document.createElement('span');
+            s1.className = st.text;
+            s1.textContent = st.label;
+            const s2 = document.createElement('span');
+            s2.className = 'text-slate-500 tabular-nums';
+            s2.textContent = formatTimestamp(evt.timestamp);
+            rowTop.appendChild(s1);
+            rowTop.appendChild(s2);
+
+            const msg = document.createElement('div');
+            msg.className = 'text-xs font-medium text-slate-900 truncate';
+            msg.textContent = (evt.sigma_alerts && evt.sigma_alerts[0]?.title) || evt.message || '-';
+            card.appendChild(rowTop);
+            card.appendChild(msg);
+            grid.appendChild(card);
+          });
+          linkedWrap.appendChild(grid);
+        } else {
+          resetBtn.classList.add('hidden');
+          linkedWrap.classList.add('hidden');
+        }
+      }
+
+      async function openInspector(docId) {
+        state.selectedDocId = docId;
+        renderEventsList();
+        el('inspector-doc-id').textContent = `DOC:${docId}`;
+        const body = el('inspector-body');
+        body.textContent = 'Loading event evidence...';
+        el('inspector-backdrop').classList.remove('hidden');
+        el('inspector-drawer').classList.remove('hidden');
+
+        try {
+          let doc;
+          try {
+            doc = await fetchJson(`/api/events/${encodeURIComponent(docId)}`);
+          } catch {
+            doc = state.events.find((e) => e.doc_id === docId) || state.flaggedTelemetry.find((e) => e.doc_id === docId);
+            if (!doc) throw new Error('Event not found');
+          }
+          body.textContent = '';
+
+          if (Array.isArray(doc.sigma_alerts) && doc.sigma_alerts.length > 0) {
+            const alertBox = document.createElement('div');
+            alertBox.className = 'border border-rose-200 bg-rose-50 rounded-xl p-4 space-y-2';
+            const heading = document.createElement('div');
+            heading.className = 'text-xs font-semibold text-rose-800 font-display';
+            heading.textContent = 'Matched Sigma Detections';
+            alertBox.appendChild(heading);
+
+            doc.sigma_alerts.forEach((a) => {
+              const item = document.createElement('div');
+              item.className = 'pt-2 border-t border-rose-200 first:border-t-0 first:pt-0';
+              const t = document.createElement('div');
+              t.className = 'font-semibold text-slate-900';
+              t.textContent = `${a.title} (${a.severity.toUpperCase()})`;
+              const m = document.createElement('div');
+              m.className = 'font-mono text-rose-700 mt-0.5';
+              m.textContent = `${a.rule_id} · ${a.mitre_tactic} · ${a.mitre_technique}`;
+              const d = document.createElement('div');
+              d.className = 'text-slate-700 mt-1';
+              d.textContent = a.description || '';
+              item.appendChild(t);
+              item.appendChild(m);
+              item.appendChild(d);
+              alertBox.appendChild(item);
+            });
+            body.appendChild(alertBox);
+          }
+
+          const decodedPs = doc.decoded_powershell || decodePowerShellBase64(doc.command_line || '');
+          if (decodedPs) {
+            const psBox = document.createElement('div');
+            psBox.className = 'border border-sky-200 bg-sky-50 rounded-xl p-4 space-y-1.5';
+            const psTitle = document.createElement('div');
+            psTitle.className = 'text-xs font-semibold text-sky-900 font-display';
+            psTitle.textContent = 'Decoded Base64 PowerShell Payload';
+            const psPre = document.createElement('pre');
+            psPre.className = 'font-mono text-[11px] text-sky-50 bg-slate-900 border border-slate-700 rounded-lg p-2.5 whitespace-pre-wrap break-all';
+            psPre.textContent = decodedPs;
+            psBox.appendChild(psTitle);
+            psBox.appendChild(psPre);
+            body.appendChild(psBox);
+          }
+
+          const fieldsGrid = document.createElement('div');
+          fieldsGrid.className = 'border border-slate-200 rounded-xl divide-y divide-slate-200 bg-white overflow-hidden';
+          const keys = [
+            ['Timestamp', 'timestamp'],
+            ['Source File', 'source_file'],
+            ['Channel', 'channel'],
+            ['Event ID', 'event_id'],
+            ['Host', 'host'],
+            ['User', 'user'],
+            ['Process', 'process_name'],
+            ['Parent Process', 'parent_process'],
+            ['Command Line', 'command_line'],
+            ['Target Image', 'target_image'],
+            ['Granted Access', 'granted_access'],
+            ['Logon Type', 'logon_type'],
+            ['Source IP', 'source_ip'],
+          ];
+
+          keys.forEach(([labelText, k]) => {
+            if (!doc[k]) return;
+            const row = document.createElement('div');
+            row.className = 'px-4 py-2.5 grid grid-cols-3 gap-3';
+            const label = document.createElement('div');
+            label.className = 'font-medium text-slate-500';
+            label.textContent = labelText;
+            const val = document.createElement('div');
+            val.className = 'col-span-2 font-mono text-slate-900 break-all';
+            val.textContent = String(doc[k]);
+            row.appendChild(label);
+            row.appendChild(val);
+            fieldsGrid.appendChild(row);
+          });
+          body.appendChild(fieldsGrid);
+
+          const rawDetails = document.createElement('details');
+          rawDetails.className = 'bg-slate-50 border border-slate-200 rounded-xl p-3.5';
+          const summary = document.createElement('summary');
+          summary.className = 'cursor-pointer font-semibold text-slate-800';
+          summary.textContent = 'Inspect Raw Event JSON';
+          const pre = document.createElement('pre');
+          pre.className = 'mt-3 p-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-sky-100 overflow-x-auto';
+          pre.textContent = JSON.stringify(doc.raw_event || doc, null, 2);
+          rawDetails.appendChild(summary);
+          rawDetails.appendChild(pre);
+          body.appendChild(rawDetails);
+        } catch (err) {
+          body.textContent = `Could not load document: ${err.message}`;
+        }
+      }
+
+      function closeInspector() {
+        el('inspector-backdrop').classList.add('hidden');
+        el('inspector-drawer').classList.add('hidden');
+      }
+
+      async function uploadFile(file) {
+        if (!file) return;
+        state.restoredMode = false;
+        state.selectedGraphNodeId = null;
+        state.activeFileName = file.name;
+        const status = el('upload-status');
+        status.textContent = `Ingesting ${file.name}...`;
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          const res = await fetchJson('/api/upload', { method: 'POST', body: formData });
+          const count = res.ingest?.ingested ?? 0;
+          const flagged = res.triage?.flagged_documents ?? 0;
+          status.textContent = `Indexed ${file.name} · ${count} events · ${flagged} flagged`;
+          await Promise.all([loadStats(), loadEvents()]);
+        } catch (err) {
+          status.textContent = `Error: ${err.message}`;
+        }
+      }
+
+      function renderCitedText(container, text) {
+        const tokenRegex = /\[DOC:([A-Za-z0-9_-]{1,128})\]/g;
+        let lastIndex = 0;
+        let match;
+        while ((match = tokenRegex.exec(text)) !== null) {
+          if (match.index > lastIndex) {
+            container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+          }
+          const docId = match[1];
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className =
+            'inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded bg-sky-50 border border-sky-300 text-sky-800 hover:bg-sky-100 font-mono text-[11px] font-semibold transition-colors';
+          btn.textContent = `DOC:${docId.slice(0, 8)}`;
+          btn.addEventListener('click', () => openInspector(docId));
+          container.appendChild(btn);
+          lastIndex = tokenRegex.lastIndex;
+        }
+        if (lastIndex < text.length) {
+          container.appendChild(document.createTextNode(text.slice(lastIndex)));
+        }
+      }
+
+      function appendChatMessage(
+        role,
+        content,
+        citations = [],
+        dslQuery = null,
+        recordInState = true,
+        mitreTechniques = [],
+        followUps = [],
+        modeUsed = state.copilotMode,
+      ) {
+        if (recordInState) {
+          state.messages.push({ role, content, citations, dslQuery, mitreTechniques, followUps, modeUsed });
+        }
+        const thread = el('chat-messages');
+        const box = document.createElement('div');
+        box.className =
+          role === 'user'
+            ? 'ml-8 border border-indigo-200 bg-indigo-50/90 rounded-xl p-3.5 text-xs text-slate-900'
+            : 'border border-slate-200 bg-white rounded-xl p-3.5 text-xs text-slate-700 space-y-2.5 shadow-2xs';
+
+        const headerRow = document.createElement('div');
+        headerRow.className = 'flex items-center justify-between gap-2';
+
+        const header = document.createElement('div');
+        header.className = 'text-[11px] font-semibold text-slate-500';
+        header.textContent =
+          role === 'user'
+            ? `Investigator · ${String(modeUsed || 'investigate').replace('_', ' ').toUpperCase()}`
+            : 'ForensicLens AI Copilot';
+        headerRow.appendChild(header);
+
+        if (role === 'assistant' && content) {
+          const copyBtn = document.createElement('button');
+          copyBtn.type = 'button';
+          copyBtn.className = 'text-[11px] text-slate-500 hover:text-sky-700';
+          copyBtn.textContent = 'Copy';
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(content);
+              copyBtn.textContent = 'Copied';
+              setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+            } catch {}
+          });
+          headerRow.appendChild(copyBtn);
+        }
+        box.appendChild(headerRow);
+
+        const body = document.createElement('div');
+        body.className = 'whitespace-pre-wrap leading-relaxed';
+        if (role === 'assistant') {
+          renderCitedText(body, content);
+        } else {
+          body.textContent = content;
+        }
+        box.appendChild(body);
+
+        if (role === 'assistant' && Array.isArray(mitreTechniques) && mitreTechniques.length > 0) {
+          const tagsLine = document.createElement('div');
+          tagsLine.className = 'text-[11px] font-mono text-amber-700 font-medium pt-1';
+          tagsLine.textContent = `MITRE ATT&CK: ${mitreTechniques.join(' · ')}`;
+          box.appendChild(tagsLine);
+        }
+
+        if (role === 'assistant' && Array.isArray(citations) && citations.length > 0) {
+          const citesWrap = document.createElement('div');
+          citesWrap.className = 'pt-2 border-t border-slate-200 space-y-1.5';
+          const label = document.createElement('div');
+          label.className = 'text-[11px] font-medium text-slate-500';
+          label.textContent = 'Cited Log Events';
+          citesWrap.appendChild(label);
+
+          citations.slice(0, 4).forEach((c) => {
+            const style = severityMeta(c.sigma_severity);
+            const citeBtn = document.createElement('button');
+            citeBtn.type = 'button';
+            citeBtn.className =
+              'w-full text-left px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 flex items-center justify-between gap-2 transition-colors';
+            const left = document.createElement('span');
+            left.className = 'font-mono text-[11px] text-slate-800 truncate';
+            left.textContent = `${c.host || '-'} · Event ${c.event_id || '-'} · ${c.command_line || c.message || ''}`;
+            const right = document.createElement('span');
+            right.className = `px-1.5 py-0.5 rounded border text-[10px] font-semibold font-mono shrink-0 ${style.bg} ${style.border} ${style.text}`;
+            right.textContent = style.label;
+            citeBtn.appendChild(left);
+            citeBtn.appendChild(right);
+            citeBtn.addEventListener('click', () => openInspector(c.doc_id));
+            citesWrap.appendChild(citeBtn);
+          });
+          box.appendChild(citesWrap);
+        }
+
+        if (role === 'assistant' && dslQuery) {
+          const details = document.createElement('details');
+          details.className = 'pt-1 text-[11px] text-slate-500';
+          const summary = document.createElement('summary');
+          summary.className = 'cursor-pointer hover:text-sky-700';
+          summary.textContent = 'Inspect OpenSearch DSL';
+          const pre = document.createElement('pre');
+          pre.className = 'mt-2 p-2.5 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-sky-100 overflow-x-auto';
+          pre.textContent = JSON.stringify(dslQuery, null, 2);
+          details.appendChild(summary);
+          details.appendChild(pre);
+          box.appendChild(details);
+        }
+
+        if (role === 'assistant' && Array.isArray(followUps) && followUps.length > 0) {
+          const fWrap = document.createElement('div');
+          fWrap.className = 'pt-2 border-t border-slate-200 space-y-1.5';
+          const fLabel = document.createElement('div');
+          fLabel.className = 'text-[11px] font-medium text-slate-500';
+          fLabel.textContent = 'Suggested Follow-Ups';
+          fWrap.appendChild(fLabel);
+
+          const btnRow = document.createElement('div');
+          btnRow.className = 'flex flex-wrap gap-1.5';
+          followUps.forEach((fq) => {
+            const fBtn = document.createElement('button');
+            fBtn.type = 'button';
+            fBtn.className =
+              'px-2.5 py-1 text-[11px] font-medium text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-md transition-colors text-left';
+            fBtn.textContent = fq;
+            fBtn.addEventListener('click', () => sendQuestion(fq));
+            btnRow.appendChild(fBtn);
+          });
+          fWrap.appendChild(btnRow);
+          box.appendChild(fWrap);
+        }
+
+        thread.appendChild(box);
+        thread.scrollTop = thread.scrollHeight;
+      }
+
+      async function sendQuestion(questionText) {
+        const trimmed = questionText.trim();
+        if (!trimmed) return;
+        const submitBtn = el('chat-submit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Analyzing...';
+        const historyPayload = state.messages
+          .slice(-8)
+          .map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 3500) }));
+
+        appendChatMessage('user', trimmed, [], null, true, [], [], state.copilotMode);
+        el('chat-input').value = '';
+
+        try {
+          const res = await fetchJson('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question: trimmed,
+              mode: state.copilotMode,
+              history: historyPayload,
+            }),
+          });
+          appendChatMessage(
+            'assistant',
+            res.answer,
+            res.citations || [],
+            res.dsl_query || null,
+            true,
+            res.mitre_techniques || [],
+            res.follow_ups || [],
+            state.copilotMode,
+          );
+        } catch (err) {
+          appendChatMessage('assistant', `Query failed: ${err.message}`);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Investigate';
+        }
+      }
+
+      function renderHistoryList() {
+        const container = el('history-list');
+        container.textContent = '';
+        if (!state.history.length) {
+          const empty = document.createElement('div');
+          empty.className = 'py-12 px-4 text-center text-xs text-slate-500';
+          empty.textContent = 'No saved sessions yet. Upload a log file and click Clear Chat to archive it here.';
+          container.appendChild(empty);
+          return;
+        }
+        state.history.forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+
+          const left = document.createElement('div');
+          left.className = 'min-w-0';
+          const name = document.createElement('div');
+          name.className = 'text-xs font-semibold text-slate-900 truncate';
+          name.textContent = item.filename || 'Investigation Session';
+          const meta = document.createElement('div');
+          meta.className = 'text-xs text-slate-500 mt-0.5 font-mono tabular-nums';
+          meta.textContent = `${formatTimestamp(item.savedAt)} · ${item.totalEvents} events · ${item.flaggedEvents} flagged`;
+          left.appendChild(name);
+          left.appendChild(meta);
+
+          const actions = document.createElement('div');
+          actions.className = 'flex items-center gap-2 shrink-0';
+
+          const openBtn = document.createElement('button');
+          openBtn.type = 'button';
+          openBtn.className = 'px-3 py-1.5 text-xs font-semibold text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-md';
+          openBtn.textContent = 'Open';
+          openBtn.addEventListener('click', () => restoreHistorySession(item));
+
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-rose-700 bg-white hover:bg-rose-50 border border-slate-200 rounded-md';
+          delBtn.textContent = 'Delete';
+          delBtn.addEventListener('click', () => {
+            state.history = state.history.filter((h) => h.id !== item.id);
+            saveHistoryToStorage();
+            renderHistoryList();
+          });
+
+          actions.appendChild(openBtn);
+          actions.appendChild(delBtn);
+          row.appendChild(left);
+          row.appendChild(actions);
+          container.appendChild(row);
+        });
+      }
+
+      function restoreHistorySession(item) {
+        state.restoredMode = true;
+        state.events = item.events || [];
+        state.flaggedTelemetry = state.events.filter((e) => e.sigma_flagged);
+        state.activeFileName = item.filename || '';
+        state.selectedDocId = null;
+        state.selectedGraphNodeId = null;
+        state.search = '';
+        state.tactic = '';
+        el('search-input').value = '';
+        resetSeverityButtons();
+        updateTacticChip();
+        el('upload-status').textContent = `Restored ${item.filename} (${state.events.length} events)`;
+
+        const flagged = state.flaggedTelemetry;
+        state.stats = {
+          total: state.events.length,
+          flagged: flagged.length,
+          critical: flagged.filter((e) => e.sigma_severity === 'critical').length,
+          highMed: flagged.filter((e) => e.sigma_severity === 'high' || e.sigma_severity === 'medium').length,
+        };
+        renderSeverityGauges();
+        renderThreatRadar();
+
+        resetChatToWelcome();
+        state.messages = [];
+        if (Array.isArray(item.messages) && item.messages.length > 0) {
+          el('chat-messages').textContent = '';
+          item.messages.forEach((m) =>
+            appendChatMessage(
+              m.role,
+              m.content,
+              m.citations || [],
+              m.dslQuery || null,
+              true,
+              m.mitreTechniques || [],
+              m.followUps || [],
+              m.modeUsed || 'investigate',
+            ),
+          );
+        }
+
+        document.querySelector('.nav-tab[data-nav="triage"]').click();
+      }
+
+      function resetChatToWelcome() {
+        state.messages = [];
+        const thread = el('chat-messages');
+        thread.textContent = '';
+        const box = document.createElement('div');
+        box.className = 'bg-white border border-slate-200 rounded-xl p-3.5 text-xs text-slate-700 leading-relaxed shadow-2xs';
+        box.textContent = 'Workspace reset. Upload a Windows log file to light up Threat Radar, Attack Graph, and cited Copilot triage.';
+        thread.appendChild(box);
+      }
+
+      // Wire events
+      document.querySelectorAll('.nav-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.view = btn.dataset.nav;
+          document.querySelectorAll('.nav-tab').forEach((b) => {
+            b.className =
+              'nav-tab flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg whitespace-nowrap shrink-0 transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent font-medium';
+          });
+          btn.className =
+            'nav-tab flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg whitespace-nowrap shrink-0 transition-colors bg-sky-50 text-sky-800 border border-sky-200 font-semibold';
+
+          el('rules-view').classList.add('hidden');
+          el('history-view').classList.add('hidden');
+          el('events-view').classList.add('hidden');
+          el('graph-view').classList.add('hidden');
+          el('alerts-toolbar').classList.add('hidden');
+
+          if (state.view === 'rules') {
+            el('rules-view').classList.remove('hidden');
+          } else if (state.view === 'history') {
+            el('history-view').classList.remove('hidden');
+            renderHistoryList();
+          } else if (state.view === 'graph') {
+            el('graph-view').classList.remove('hidden');
+            loadEvents();
+          } else {
+            el('alerts-toolbar').classList.remove('hidden');
+            el('events-view').classList.remove('hidden');
+            loadEvents();
+          }
+        });
+      });
+
+      el('active-tactic-chip').addEventListener('click', () => toggleTacticFilter(''));
+      el('graph-reset-btn').addEventListener('click', () => {
+        state.selectedGraphNodeId = null;
+        renderAttackGraph();
+      });
+
+      document.querySelectorAll('.sev-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.severity = btn.dataset.sev || '';
+          document.querySelectorAll('.sev-btn').forEach((b) => {
+            b.className = 'sev-btn px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 whitespace-nowrap';
+          });
+          btn.className = 'sev-btn px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 text-white whitespace-nowrap';
+          renderSeverityGauges();
+          loadEvents();
+        });
+      });
+
+      el('search-input').addEventListener('input', (e) => {
+        state.search = e.target.value;
+        loadEvents();
+      });
+
+      el('refresh-btn').addEventListener('click', () => {
+        loadHealth();
+        loadStats();
+        loadEvents();
+      });
+
+      document.querySelectorAll('.clear-history-trigger').forEach((trigger) => {
+        trigger.addEventListener('click', async () => {
+          const allTriggers = document.querySelectorAll('.clear-history-trigger');
+          allTriggers.forEach((b) => { b.disabled = true; b.textContent = 'Clearing...'; });
+          try {
+            await fetchJson('/api/case', { method: 'DELETE' });
+            state.history = [];
+            saveHistoryToStorage();
+            state.restoredMode = false;
+            state.events = [];
+            state.flaggedTelemetry = [];
+            state.stats = { total: 0, flagged: 0, critical: 0, highMed: 0 };
+            state.activeFileName = '';
+            state.selectedDocId = null;
+            state.selectedGraphNodeId = null;
+            state.search = '';
+            state.tactic = '';
+            el('search-input').value = '';
+            resetSeverityButtons();
+            updateTacticChip();
+            renderSeverityGauges();
+            renderThreatRadar();
+            el('file-input').value = '';
+            el('upload-status').textContent = 'All saved history cleared';
+            closeInspector();
+            resetChatToWelcome();
+            renderHistoryList();
+            await Promise.all([loadStats(), loadEvents()]);
+          } catch (err) {
+            el('upload-status').textContent = `Clear failed: ${err.message}`;
+          } finally {
+            allTriggers.forEach((b) => { b.disabled = false; b.textContent = 'Clear History'; });
+          }
+        });
+      });
+
+      document.querySelectorAll('.scan-logs-trigger').forEach((trigger) => {
+        trigger.addEventListener('click', async () => {
+          const allTriggers = document.querySelectorAll('.scan-logs-trigger');
+          allTriggers.forEach((b) => { b.disabled = true; b.textContent = 'Scanning...'; });
+          try {
+            await fetchJson('/api/triage', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sync_security_analytics: true }),
+            });
+            await Promise.all([loadStats(), loadEvents()]);
+          } finally {
+            allTriggers.forEach((b) => { b.disabled = false; b.textContent = 'Scan Logs'; });
+          }
+        });
+      });
+
+      const dropzone = el('dropzone');
+      const fileInput = el('file-input');
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') fileInput.click();
+      });
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('border-sky-500', 'bg-sky-50/70');
+      });
+      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-sky-500', 'bg-sky-50/70'));
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-sky-500', 'bg-sky-50/70');
+        if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+      });
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) uploadFile(e.target.files[0]);
+      });
+
+      el('close-inspector-btn').addEventListener('click', closeInspector);
+      el('inspector-backdrop').addEventListener('click', closeInspector);
+
+      el('chat-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        sendQuestion(el('chat-input').value);
+      });
+      el('chat-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendQuestion(el('chat-input').value);
+        }
+      });
+
+      el('clear-chat-btn').addEventListener('click', async () => {
+        const hasSessionData = state.events.length > 0 || state.messages.length > 0;
+        if (hasSessionData) {
+          const flaggedCount = state.events.filter((e) => e.sigma_flagged).length;
+          state.history.unshift({
+            id: `sess_${Date.now()}`,
+            filename: state.activeFileName || 'Investigation Session',
+            savedAt: new Date().toISOString(),
+            totalEvents: state.events.length,
+            flaggedEvents: flaggedCount,
+            events: state.events,
+            messages: state.messages,
+          });
+          saveHistoryToStorage();
+        }
+
+        try {
+          await fetchJson('/api/case', { method: 'DELETE' });
+        } catch {}
+
+        state.restoredMode = false;
+        state.events = [];
+        state.flaggedTelemetry = [];
+        state.stats = { total: 0, flagged: 0, critical: 0, highMed: 0 };
+        state.activeFileName = '';
+        state.selectedDocId = null;
+        state.selectedGraphNodeId = null;
+        state.search = '';
+        state.tactic = '';
+        el('search-input').value = '';
+        resetSeverityButtons();
+        updateTacticChip();
+        renderSeverityGauges();
+        renderThreatRadar();
+        el('file-input').value = '';
+        el('upload-status').textContent = hasSessionData ? 'Session saved to History · Fresh workspace ready' : '';
+        closeInspector();
+        resetChatToWelcome();
+        if (state.view === 'history' || state.view === 'graph') {
+          document.querySelector('.nav-tab[data-nav="triage"]').click();
+          await loadStats();
+        } else {
+          await Promise.all([loadStats(), loadEvents()]);
+        }
+      });
+
+      document.querySelectorAll('.mode-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.copilotMode = btn.dataset.mode || 'investigate';
+          document.querySelectorAll('.mode-btn').forEach((b) => {
+            b.className =
+              b === btn
+                ? 'mode-btn px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-600 text-white whitespace-nowrap'
+                : 'mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 whitespace-nowrap';
+          });
+        });
+      });
+
+      document.querySelectorAll('.prompt-chip').forEach((chip) => {
+        chip.addEventListener('click', () => sendQuestion(chip.textContent));
+      });
+
+      loadHistoryFromStorage();
+      renderSeverityGauges();
+      renderThreatRadar();
+      loadHealth();
+      loadStats();
+      loadEvents();
+    </script>
+  </body>
+</html>
